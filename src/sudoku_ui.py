@@ -45,7 +45,16 @@ class SudokuGame:
         self.board = None
         self.original_board = None
         self.start_time = None
+        self.full_solution = None
+        self.solve_stack = []
         self.generate_puzzle()
+
+
+        self.visualize_mode = False
+        self.auto_solve = False
+        self.last_step_time = 0
+        self.step_delay = 0.3  # seconds per step
+
 
     def generate_puzzle(self):
         """Generate a completely new random Sudoku puzzle with unique solution."""
@@ -59,6 +68,9 @@ class SudokuGame:
         self.solve_from(0, 0)  # Fill the rest using backtracking
         #self.original_board = [row[:] for row in self.board]  # Save solved
 
+        # save the full solution
+        self.full_solution = [row[:] for row in self.board]
+
         # Step 2: Remove cells to make puzzle (keep unique solution)
         if self.difficulty == "easy":
             self.remove_cells_symmetrically(35)
@@ -67,9 +79,9 @@ class SudokuGame:
         elif self.difficulty == "hard":
             self.remove_cells_symmetrically(55)
 
-        # ADD THIS LINE:
+        #Puzzle with holes
         self.original_board = [row[:] for row in self.board]
-
+        self.solve_from(0, 0)
         self.start_time = time.time()
 
     def fill_diagonal_boxes(self):
@@ -105,6 +117,37 @@ class SudokuGame:
                 if self.solve_from(row, col + 1):
                     return True
                 self.board[row][col] = 0
+        return False
+
+    def solve_step(self):
+        """Perform ONE step of backtracking. Return True if solved."""
+        # Initialize stack on first call
+        if not self.solve_stack:
+            empty = self.find_empty_cell(self.board)
+            if empty:
+                self.solve_stack.append(empty)
+            else:
+                return True  # Already solved
+
+        if not self.solve_stack:
+            return True
+
+        row, col = self.solve_stack[-1]
+        start_num = self.board[row][col] + 1 if self.board[row][col] > 0 else 1
+
+        for num in range(start_num, 10):
+            if self.is_valid_move(self.board, row, col, num):
+                self.board[row][col] = num
+                next_empty = self.find_empty_cell(self.board)
+                if next_empty:
+                    self.solve_stack.append(next_empty)
+                else:
+                    return True  # Solved
+                return False  # Step done
+
+        # Backtrack
+        self.board[row][col] = 0
+        self.solve_stack.pop()
         return False
 
     def count_solutions(self, board):
@@ -232,14 +275,26 @@ class SudokuGame:
                 # Draw number
                 if self.board[i][j] != 0:
                     num = self.board[i][j]
-                    # Different color: BLACK for original, BLUE for user input
-                    if self.original_board[i][j] != 0:
-                        color = self.BLACK  # Original numbers
+
+                    # Visual solve: highlight current cell being tried
+                    if (self.visualize_mode and self.solve_stack and(i, j) == self.solve_stack[-1] and self.original_board[i][j] == 0):
+                        color = self.RED  # Current trial
+                    elif (self.visualize_mode and self.solve_stack and len(self.solve_stack) > 1 and (i, j) == self.solve_stack[-2]):
+                        color = self.GREEN  # Previous (locked in)
+                    elif self.original_board[i][j] != 0:
+                        color = self.BLACK
                     else:
-                        color = self.BLUE   # User input
+                        color = self.BLUE
+
+
+                    # Different color: BLACK for original, BLUE for user input
+                    #if self.original_board[i][j] != 0:
+                    #    color = self.BLACK  # Original numbers
+                        # else:
+                    #   color = self.BLUE   # User input
+
                     text = self.num_font.render(str(int(num)), True, color)
-                    text_rect = text.get_rect(center=(x + self.CELL_SIZE//2,
-                                                      y + self.CELL_SIZE//2))
+                    text_rect = text.get_rect(center=(x + self.CELL_SIZE//2, y + self.CELL_SIZE//2))
                     self.screen.blit(text, text_rect)
 
         # Draw thick lines for 3x3 boxes
@@ -328,8 +383,26 @@ class SudokuGame:
 
         # === BUTTONS: Check in this order ===
         elif solve_rect.collidepoint(pos):
-            self.board = [row[:] for row in self.original_board]
-            self.solve()
+
+            if not self.visualize_mode:
+                # Reset to puzzle
+                self.board = [row[:] for row in self.original_board]
+                # Reset solver state
+                self.solve_stack = []
+                self.visualize_mode = True
+                self.auto_solve = True
+                self.last_step_time = time.time()
+
+            else:
+                # Instant solve if already visualizing
+                self.board = [row[:] for row in self.original_board]
+                self.solve()
+                self.visualize_mode = False
+                self.auto_solve = False
+
+
+            #self.board = [row[:] for row in self.original_board]
+            #self.solve()
 
         elif new_rect.collidepoint(pos):
             self.generate_puzzle()  # This now uses self.difficulty
@@ -412,6 +485,14 @@ class SudokuGame:
 
             pygame.display.flip()
             clock.tick(60)
+
+            # Auto-step visual solver
+            if self.auto_solve and self.visualize_mode:
+                now = time.time()
+                if now - self.last_step_time >= self.step_delay:
+                    if self.solve_step():
+                        self.auto_solve = False  # Done
+                    self.last_step_time = now
 
         pygame.quit()
         sys.exit()
