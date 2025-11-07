@@ -15,19 +15,19 @@ class SudokuGame:
         pygame.init()
 
         # Constants
-        self.WIDTH = 600
-        self.HEIGHT = 800
+        self.WIDTH = 630
+        self.HEIGHT = 700
         self.GRID_SIZE = 540
         self.CELL_SIZE = self.GRID_SIZE // 9
-        self.GRID_OFFSET = 30
+        self.GRID_OFFSET = 50
 
         # Colors
-        self.WHITE = (255, 255, 255)
+        self.WHITE = (248, 248, 250)
         self.BLACK = (0, 0, 0)
         self.GRAY = (200, 200, 200)
-        self.BLUE = (0, 100, 255)
-        self.RED = (255, 0, 0)
-        self.GREEN = (0, 200, 0)
+        self.BLUE = (52, 152, 219)
+        self.RED = (231, 76, 60)
+        self.GREEN = (46, 204, 113)
         self.LIGHT_BLUE = (200, 220, 255)
 
         # Setup display
@@ -39,8 +39,16 @@ class SudokuGame:
         self.small_font = pygame.font.Font(None, 36)
         self.button_font = pygame.font.Font(None, 32)
 
+
+
+        # Add after self.LIGHT_BLUE definition
+        self.ARROW_SIZE = 20
+        self.difficulties = ["Easy", "Medium", "Hard"]
+        self.difficulty_index = 1  # Start at Medium (index 1)
+        self.difficulty = self.difficulties[self.difficulty_index].lower()
+
         # Game state
-        self.difficulty = "medium"  # default
+        #self.difficulty = "medium"  # default
         self.selected = None
         self.board = None
         self.original_board = None
@@ -54,7 +62,6 @@ class SudokuGame:
         self.auto_solve = False
         self.last_step_time = 0
         self.step_delay = 0.3  # seconds per step
-
 
     def generate_puzzle(self):
         """Generate a completely new random Sudoku puzzle with unique solution."""
@@ -334,28 +341,8 @@ class SudokuGame:
         clear_text = self.button_font.render("Clear", True, self.WHITE)
         self.screen.blit(clear_text, clear_text.get_rect(center=clear_rect.center))
 
-        # Difficulty buttons (add after clear button)
-        easy_rect = pygame.Rect(50, 670, 100, 40)
-        med_rect = pygame.Rect(160, 670, 100, 40)
-        hard_rect = pygame.Rect(270, 670, 100, 40)
 
-        # Highlight selected
-        pygame.draw.rect(self.screen, self.GREEN if self.difficulty == "easy" else self.GRAY, easy_rect)
-        pygame.draw.rect(self.screen, self.GREEN if self.difficulty == "medium" else self.GRAY, med_rect)
-        pygame.draw.rect(self.screen, self.GREEN if self.difficulty == "hard" else self.GRAY, hard_rect)
-
-        for r in (easy_rect, med_rect, hard_rect):
-            pygame.draw.rect(self.screen, self.BLACK, r, 2)
-
-        easy_text = self.button_font.render("Easy", True, self.WHITE)
-        med_text = self.button_font.render("Medium", True, self.WHITE)
-        hard_text = self.button_font.render("Hard", True, self.WHITE)
-
-        self.screen.blit(easy_text, easy_text.get_rect(center=easy_rect.center))
-        self.screen.blit(med_text, med_text.get_rect(center=med_rect.center))
-        self.screen.blit(hard_text, hard_text.get_rect(center=hard_rect.center))
-
-        return solve_rect, new_rect, clear_rect, easy_rect, med_rect, hard_rect
+        return solve_rect, new_rect, clear_rect
 
     def draw_timer(self):
         """Draw the elapsed time."""
@@ -366,12 +353,42 @@ class SudokuGame:
                                             True, self.BLACK)
         self.screen.blit(timer_text, (400, 5))
 
-    def draw_title(self):
+    def draw_title2(self):
         """Draw the game title."""
         title_text = self.small_font.render("SUDOKU", True, self.BLACK)
         self.screen.blit(title_text, (50, 5))
 
-    def handle_click(self, pos, solve_rect, new_rect, clear_rect, easy_rect, med_rect, hard_rect):
+    def draw_title(self):
+        """Draw the game title with difficulty selector."""
+        title_text = self.small_font.render("SUDOKU", True, self.BLACK)
+        self.screen.blit(title_text, (50, 5))
+
+        # Difficulty selector (right of title)
+        diff_x = 220
+        diff_y = 10
+
+        # Left arrow
+        left_arrow = pygame.Rect(diff_x, diff_y, self.ARROW_SIZE, self.ARROW_SIZE)
+        pygame.draw.polygon(self.screen, self.GRAY if self.difficulty_index == 0 else self.BLUE,
+                            [(diff_x + self.ARROW_SIZE, diff_y),
+                             (diff_x, diff_y + self.ARROW_SIZE // 2),
+                             (diff_x + self.ARROW_SIZE, diff_y + self.ARROW_SIZE)])
+
+        # Difficulty text
+        diff_text = self.small_font.render(self.difficulties[self.difficulty_index], True, self.BLACK)
+        diff_rect = diff_text.get_rect(center=(diff_x + 80, diff_y + self.ARROW_SIZE // 2))
+        self.screen.blit(diff_text, diff_rect)
+
+        # Right arrow
+        right_arrow = pygame.Rect(diff_x + 140, diff_y, self.ARROW_SIZE, self.ARROW_SIZE)
+        pygame.draw.polygon(self.screen, self.GRAY if self.difficulty_index == 2 else self.BLUE,
+                            [(diff_x + 140, diff_y),
+                             (diff_x + 140 + self.ARROW_SIZE, diff_y + self.ARROW_SIZE // 2),
+                             (diff_x + 140, diff_y + self.ARROW_SIZE)])
+
+        return left_arrow, right_arrow
+
+    def handle_click(self, pos, solve_rect, new_rect, clear_rect, left_arrow, right_arrow):
         x, y = pos
 
         # Grid click
@@ -413,13 +430,13 @@ class SudokuGame:
                     if self.original_board[i][j] == 0:
                         self.board[i][j] = 0
 
-        # Difficulty buttons — AFTER other buttons
-        elif easy_rect.collidepoint(pos):
-            self.difficulty = "easy"
-        elif med_rect.collidepoint(pos):
-            self.difficulty = "medium"
-        elif hard_rect.collidepoint(pos):
-            self.difficulty = "hard"
+        # Arrow clicks for difficulty
+        elif left_arrow.collidepoint(pos) and self.difficulty_index > 0:
+            self.difficulty_index -= 1
+            self.difficulty = self.difficulties[self.difficulty_index].lower()
+        elif right_arrow.collidepoint(pos) and self.difficulty_index < 2:
+            self.difficulty_index += 1
+            self.difficulty = self.difficulties[self.difficulty_index].lower()
 
     def handle_key(self, key):
         """Handle keyboard input."""
@@ -464,22 +481,25 @@ class SudokuGame:
             self.screen.fill(self.WHITE)
 
             # Draw game elements
-            self.draw_title()
+            left_arrow, right_arrow = self.draw_title()
             self.draw_timer()
             self.draw_grid()
-            solve_rect, new_rect, clear_rect, easy_rect, med_rect, hard_rect = self.draw_buttons()
+            solve_rect, new_rect, clear_rect = self.draw_buttons()
 
             # Check if puzzle is complete
             if self.is_complete():
-                complete_text = self.small_font.render("COMPLETED!", True, self.GREEN)
-                self.screen.blit(complete_text, (220, 580))
+                complete_bg = pygame.Rect(200, 575, 200, 35)
+                pygame.draw.rect(self.screen, self.GREEN, complete_bg, border_radius=8)
+                complete_text = self.small_font.render("COMPLETED!", True, self.WHITE)
+                self.screen.blit(complete_text, complete_text.get_rect(center=complete_bg.center))
+
 
             # Event handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN:
-                    self.handle_click(event.pos, solve_rect, new_rect, clear_rect, easy_rect, med_rect, hard_rect)
+                    self.handle_click(event.pos, solve_rect, new_rect, clear_rect, left_arrow, right_arrow)
                 elif event.type == pygame.KEYDOWN:
                     self.handle_key(event.key)
 
